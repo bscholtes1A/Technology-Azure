@@ -33,24 +33,24 @@ import static java.lang.String.format;
  * Implements a vault backed by Azure Vault.
  */
 public class AzureVault implements Vault {
-
+    
     private static final String ALLOWED_CHARACTERS_REGEX = "^[a-zA-Z0-9-]*$";
     private static final String DISALLOWED_CHARACTERS_REGEX = "[^a-zA-Z0-9-]+";
     private static final String STARTS_WITH_LETTER_REGEX = "^[A-Za-z].*$";
     private static final String LETTER_PREFIX = "x-";
-    private final SecretClient secretClient;
+    private final SecretClient client;
     private final Monitor monitor;
 
     public AzureVault(Monitor monitor, SecretClient secretClient) {
         this.monitor = monitor;
-        this.secretClient = secretClient;
+        this.client = secretClient;
     }
 
     @Override
     public @Nullable String resolveSecret(String key) {
         var sanitizedKey = sanitizeKey(key);
         try {
-            var secret = secretClient.getSecret(sanitizedKey);
+            var secret = client.getSecret(sanitizedKey);
             return secret.getValue();
         } catch (ResourceNotFoundException ex) {
             monitor.debug(format("Secret %s not found", sanitizedKey));
@@ -65,7 +65,7 @@ public class AzureVault implements Vault {
     public Result<Void> storeSecret(String key, String value) {
         try {
             var sanitizedKey = sanitizeKey(key);
-            secretClient.setSecret(sanitizedKey, value);
+            client.setSecret(sanitizedKey, value);
             monitor.debug("storing secret successful");
             return Result.success();
         } catch (Exception ex) {
@@ -79,7 +79,7 @@ public class AzureVault implements Vault {
         var sanitizedKey = sanitizeKey(key);
         SyncPoller<DeletedSecret, Void> poller = null;
         try {
-            poller = secretClient.beginDeleteSecret(sanitizedKey);
+            poller = client.beginDeleteSecret(sanitizedKey);
             monitor.debug("Begin deleting secret");
             poller.waitForCompletion(Duration.ofMinutes(1));
 
@@ -104,7 +104,7 @@ public class AzureVault implements Vault {
             return Result.failure(re.getMessage());
         } finally {
             try {
-                secretClient.purgeDeletedSecret(sanitizedKey);
+                client.purgeDeletedSecret(sanitizedKey);
             } catch (Exception e) {
                 monitor.severe("Error purging secret from AzureVault", e);
             }

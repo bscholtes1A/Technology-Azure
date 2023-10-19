@@ -21,9 +21,9 @@ dependencies {
     api(libs.edc.spi.core)
 
     implementation(libs.azure.keyvault)
+    implementation(libs.azure.identity)
 
-    testImplementation(libs.azure.resourcemanager)
-    testImplementation(libs.azure.resourcemanager.keyvault)
+    testImplementation(libs.edc.junit)
 }
 
 

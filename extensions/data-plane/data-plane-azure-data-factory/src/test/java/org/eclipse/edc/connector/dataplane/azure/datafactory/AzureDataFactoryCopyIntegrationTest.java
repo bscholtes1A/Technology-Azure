@@ -77,29 +77,8 @@ class AzureDataFactoryCopyIntegrationTest {
     private final String blobName = createBlobName();
     private final TypeManager typeManager = new TypeManager();
 
-    @BeforeAll
-    static void beforeAll() throws FileNotFoundException {
-        savedProperties = (Properties) System.getProperties().clone();
-        var file = new File(TestUtils.findBuildRoot(), RUNTIME_SETTINGS_PATH);
-        if (!file.exists()) {
-            throw new FileNotFoundException("Runtime settings file not found");
-        }
-        System.setProperty(EDC_FS_CONFIG, file.getAbsolutePath());
-    }
-
-    @AfterAll
-    static void afterAll() {
-        System.setProperties(savedProperties);
-        CONTAINER_CLEANUP.parallelStream().forEach(Runnable::run);
-        SECRET_CLEANUP.forEach(Runnable::run);
-    }
-
     @Test
-    void transfer_success(
-            EdcExtension edc,
-            AzureResourceManager azure,
-            DataPlaneManager dataPlaneManager,
-            DataPlaneStore store) {
+    void transfer_success(EdcExtension edc, AzureResourceManager azure, DataPlaneManager dataPlaneManager, DataPlaneStore store) {
         // Arrange
         var providerStorage = new Account(azure, edc, PROVIDER_STORAGE_RESOURCE_ID);
         var consumerStorage = new Account(azure, edc, CONSUMER_STORAGE_RESOURCE_ID);
@@ -143,7 +122,7 @@ class AzureDataFactoryCopyIntegrationTest {
         setSecret(consumerStorage, vault, destSecretKeyName);
 
         // Act
-        dataPlaneManager.initiateTransfer(request);
+        dataPlaneManager.initiate(request);
 
         // Assert
         var destinationBlob = consumerStorage.client
@@ -151,8 +130,8 @@ class AzureDataFactoryCopyIntegrationTest {
                 .getBlobClient(blobName);
         await()
                 .atMost(Duration.ofMinutes(5))
-                .untilAsserted(() -> assertThat(store.getState(request.getProcessId()))
-                        .isEqualTo(DataPlaneStore.State.COMPLETED));
+                .untilAsserted(() -> assertThat(store.findById(request.getProcessId()))
+                        .satisfies(dataFlow -> assertThat(dataFlow.getState()).isEqualTo(DataPlaneStore.State.COMPLETED)));
         assertThat(destinationBlob.exists())
                 .withFailMessage("should have copied blob between containers")
                 .isTrue();
@@ -175,6 +154,23 @@ class AzureDataFactoryCopyIntegrationTest {
         // Add for clean up test data
         SECRET_CLEANUP.add(() -> vault.secretClient().beginDeleteSecret(secretName).blockLast(Duration.ofMinutes(1)));
         SECRET_CLEANUP.add(() -> vault.secretClient().purgeDeletedSecret(secretName).block(Duration.ofMinutes(1)));
+    }
+
+    @BeforeAll
+    static void beforeAll() throws FileNotFoundException {
+        savedProperties = (Properties) System.getProperties().clone();
+        var file = new File(TestUtils.findBuildRoot(), RUNTIME_SETTINGS_PATH);
+        if (!file.exists()) {
+            throw new FileNotFoundException("Runtime settings file not found");
+        }
+        System.setProperty(EDC_FS_CONFIG, file.getAbsolutePath());
+    }
+
+    @AfterAll
+    static void afterAll() {
+        System.setProperties(savedProperties);
+        CONTAINER_CLEANUP.parallelStream().forEach(Runnable::run);
+        SECRET_CLEANUP.forEach(Runnable::run);
     }
 
     private static class Account {

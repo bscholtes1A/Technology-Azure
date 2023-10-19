@@ -14,7 +14,7 @@
 
 package org.eclipse.edc.vault.azure;
 
-import com.azure.core.credential.TokenCredential;
+import com.azure.identity.DefaultAzureCredentialBuilder;
 import com.azure.security.keyvault.secrets.SecretClientBuilder;
 import org.eclipse.edc.runtime.metamodel.annotation.Extension;
 import org.eclipse.edc.runtime.metamodel.annotation.Inject;
@@ -34,14 +34,12 @@ import org.eclipse.edc.spi.system.ServiceExtensionContext;
 public class AzureVaultExtension implements ServiceExtension {
 
     public static final String NAME = "Azure Vault";
-    @Setting
+
+    @Setting("Name of the Azure Vault")
     private static final String VAULT_NAME = "edc.vault.name";
 
     @Inject
     private Monitor monitor;
-
-    @Inject
-    private TokenCredential tokenCredential;
 
     @Override
     public String name() {
@@ -51,9 +49,11 @@ public class AzureVaultExtension implements ServiceExtension {
     @Override
     public void initialize(ServiceExtensionContext context) {
         var name = context.getConfig().getString(VAULT_NAME);
+
+        var credential = new DefaultAzureCredentialBuilder().build();
         var client = new SecretClientBuilder()
                 .vaultUrl("https://" + name + ".vault.azure.net")
-                .credential(tokenCredential)
+                .credential(credential)
                 .buildClient();
         var vault = new AzureVault(context.getMonitor(), client);
 
